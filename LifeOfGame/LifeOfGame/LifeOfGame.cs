@@ -47,7 +47,7 @@ namespace LifeOfGame {
                 StringBuilder lineBuilder = new StringBuilder();
             
                 for (int x = 0; x < 5; x++) {
-                    bool isAlive = this._neighborStates[x, y];
+                    bool isAlive = this._neighborStates[y, x];
                     lineBuilder.Append(isAlive ? "0" : ".");
                 }
 
@@ -67,10 +67,6 @@ namespace LifeOfGame {
             this._y = y;
         }
 
-        public override int GetHashCode() {
-            return (int) (this._x ^ this._y);
-        }
-
         public override bool Equals(object obj) {
             Cell otherCell = (Cell)obj;
             if (otherCell == null) {
@@ -80,22 +76,30 @@ namespace LifeOfGame {
             return this._x == otherCell._x && this._y == otherCell._y;
         }
 
+        public override int GetHashCode() {
+            int hashcode = 23;
+            hashcode = (hashcode * 37) + this._x.GetHashCode();
+            hashcode = (hashcode * 37) + this._y.GetHashCode();
+
+            return hashcode;
+        }
+
         public Cell GetNeighbor(Direction direction) {
             switch (direction) {
                 case Direction.Tl:
-                    return new Cell(this._x - 1, this._y - 1);
+                    return new Cell(this._x - 1, this._y + 1);
                 case Direction.T:
-                    return new Cell(this._x, this._y - 1);
+                    return new Cell(this._x, this._y + 1);
                 case Direction.Tr:
-                    return new Cell(this._x + 1, this._y - 1);
+                    return new Cell(this._x + 1, this._y + 1);
                 case Direction.R:
                     return new Cell(this._x + 1, this._y);
                 case Direction.Br:
-                    return new Cell(this._x + 1, this._y + 1);
+                    return new Cell(this._x + 1, this._y - 1);
                 case Direction.B:
-                    return new Cell(this._x, this._y + 1);
+                    return new Cell(this._x, this._y - 1);
                 case Direction.Bl:
-                    return new Cell(this._x - 1, this._y + 1);
+                    return new Cell(this._x - 1, this._y - 1);
                 case Direction.L:
                     return new Cell(this._x - 1, this._y);
                 default:
@@ -138,7 +142,6 @@ namespace LifeOfGame {
 
         private static Output CalculateOutput(Inputs input) {
             IEnumerable<LineState> lineStates = MergeLineStates(input.LineStates);
-
             HashSet<Cell> cells = new HashSet<Cell>((int)input.LivingInGen0);
             
             // Populate the lists
@@ -159,17 +162,22 @@ namespace LifeOfGame {
                     
                     cellsToAdd.AddRange(revived);
                 }
-            }
+                
+                foreach (Cell dead in cellsToRemove) {
+                    cells.Remove(dead);
+                }
 
-            foreach (Cell dead in cellsToRemove) {
-                cells.Remove(dead);
+                foreach (Cell alive in cellsToAdd) {
+                    cells.Add(alive);
+                }
+                
+                cellsToRemove.Clear();
+                cellsToAdd.Clear();
             }
-            
-            cells.UnionWith(cellsToAdd);
 
             long cellsAliveCount = cells.Count;
             Cell targetCell = new Cell(input.BlockX, input.BlockY);
-            bool[,] targetCellSurroundings = new bool[,] {
+            bool[,] targetCellSurroundings = {
                 {
                     cells.Contains(targetCell.GetNeighbor(Direction.Tl).GetNeighbor(Direction.Tl)),
                     cells.Contains(targetCell.GetNeighbor(Direction.Tl).GetNeighbor(Direction.T)),
@@ -222,17 +230,15 @@ namespace LifeOfGame {
                 }
             }
 
-            bool returnValue = neighborsAlive == 2 || neighborsAlive == 3;
+            bool willLive = neighborsAlive == 2 || neighborsAlive == 3;
 
             List<Cell> revivedCells = new List<Cell>();
             foreach (Cell deadCell in deadNeighbors) {
                 neighborsAlive = 0;
                 
                 foreach (Cell neighbor in deadCell.GetAllNeighbors()) {
-                    if (!returnValue && neighbor != cell) {
-                        if (aliveCellsCurrentGeneration.Contains(neighbor)) {
-                            neighborsAlive++;
-                        }   
+                    if (aliveCellsCurrentGeneration.Contains(neighbor)) {
+                        neighborsAlive++;
                     }
                 }
 
@@ -241,7 +247,7 @@ namespace LifeOfGame {
                 }
             }
 
-            return (returnValue, revivedCells);
+            return (willLive, revivedCells);
         }
 
         private static IEnumerable<LineState> MergeLineStates(IEnumerable<LineState> originalStates) { 
